@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from scrapy.selector import HtmlXPathSelector
 from scrapy.contrib.linkextractors.sgml import SgmlLinkExtractor
 from scrapy.spider import BaseSpider
@@ -10,7 +11,7 @@ from spskyscraper.items import MateriaItem, CommentItem
 import re,hashlib
 
 ALLOWED_DOMAINS=['folha.com','folha.uol.com.br','folha.com.br','comentarios.folha.com.br']
-COMMENT_URL="http://comentarios.folha.com.br/comentarios?comment={comment_id}"
+COMMENT_URL="http://comentarios.folha.com.br/comentarios/{comment_id}"
 
 class FolhaSpider(BaseSpider):
     name = 'folha'
@@ -28,25 +29,25 @@ class FolhaSpider(BaseSpider):
         for comm in comments:
             author = comm.select('h6/span/a/text()').extract()
             author_url = comm.select('h6/span/a/@href').extract()
-            downvotes,upvotes = comm.select('ul[@class="interact"]/li[@class="rating"]/a/text()').extract()
             comment = '\n'.join( comm.select('p/text()').extract()[:-1] )
 
             n_com = CommentItem()
             n_com['type']       = 'Comment'
             n_com['author']     = author[0].split('(')[0].strip()
             n_com['author_url'] = author_url[0]
-            n_com['downvotes']  = downvotes
-            n_com['upvotes']    = upvotes
             n_com['comment']    = ''.join(comment)
 
             yield n_com
 
+        f = file('log.log','w')
+        f.write( response.body )
 
         # Let's proceed until the last page
-        next_page = hxs.select('//p[@class="pagination"]/span[last()]/a/@href')
+        next_page = hxs.select('//p[@class="pagination"][1]/a[last()]/text()')[0].extract()
+        next_url  = hxs.select('//p[@class="pagination"][1]/a[last()]/@href')[0].extract()
 
-        if next_page:
-            next_url = next_page[0].extract()
+        if next_page == u'Próximas':
+            log.msg("Fetching comment page %s" % next_url, loglevel=log.INFO)
             yield Request( next_url, callback=self.parse_comment_page )
 
     def parse_comment_json(self,response):
@@ -54,7 +55,7 @@ class FolhaSpider(BaseSpider):
             the comment page. On the end, redirect to the
             comment pages below
         """
-        match_commentid = re.search(r"http://comentarios.folha.com.br/comentarios\?comment=(\d+)",response.body)
+        match_commentid = re.search(r"http://comentarios\d.folha.com.br\/comentarios/(\d+)",response.body)
         comment_id = match_commentid.groups()[0]
 
         yield Request( COMMENT_URL.format(comment_id=comment_id), callback=self.parse_comment_page )
@@ -70,8 +71,6 @@ class FolhaSpider(BaseSpider):
         m['title'] = ''.join( map( lambda s: s.strip(), hxs.select('//*[@id="articleNew"]/h1/text()').extract() ))
         m['url'] = response.url
         m['id']  = hashlib.sha1( response.url.split('/')[-1] ).hexdigest().upper()
-
-        log.msg("Parsing %s" % response.url, level=log.INFO)
 
         # Save the page to a file
         filename = response.url.split("/")[-1]
