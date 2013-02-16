@@ -2,7 +2,7 @@
 #
 # If you're reading this. Then this is your soundtrack for the code.
 #
-# http://www.mixcloud.com/acidpauli/acid-pauli-hibernating-rote-sonne-2011_01_20/
+# https://soundcloud.com/clownandsunset/sets/acid-pauli-mst
 #
 from scrapy import log
 from scrapy.selector import HtmlXPathSelector
@@ -13,14 +13,11 @@ from scrapy.contrib.spiders import CrawlSpider, Rule
 
 from spskyscraper.items import MateriaItem, CommentItem
 
-#from settings import SCRAPPERS
-#scrapper = SCRAPPERS['globo']
-
 import re,hashlib,urllib,json
 
 ALLOWED_DOMAINS=['globo.com','g1.globo.com', 'comentarios.globo.com', 'comentarios.globo.com.br' ]
-COMMENT_RESUME_URL='http://comentarios.globo.com/comentarios/{materia_section}/{materia_id}/{materia_url}/{materia_shorturl}/{materia_title}/numero',
-COMMENT_PAGE_URL='http://comentarios.globo.com/comentarios/{materia_section}/{materia_id}/{materia_url}/{materia_shorturl}/{materia_title}/{page}.json'
+COMMENT_RESUME_URL="http://comentarios.globo.com/comentarios/{materia_section}/{materia_id}/{materia_url}/{materia_shorturl}/{materia_title}/numero"
+COMMENT_PAGE_URL="http://comentarios.globo.com/comentarios/{materia_section}/{materia_id}/{materia_url}/{materia_shorturl}/{materia_title}/{page}.json"
 
 class GloboSpider(BaseSpider):
     name = 'globo'
@@ -49,15 +46,20 @@ class GloboSpider(BaseSpider):
         return n_com
 
     def parse_comment_page_json(self,response):
+        page = response.url.split('/')[-1].split('.json')[0]
         rjson = {}
         try:
             data =  re.search('__callback_listacomentarios\(([\s\S\n]*)\)',response.body, re.MULTILINE).groups()[0]
-            rjson =  json.loads( data.replace('\n', '\\n').replace('\r','\\r') )
-        except:
-            print "Could not decode page %s" % response.url.split('/')[-1]
 
-        for c in rjson['itens']:
-            yield self.parse_single_comment(c)
+            # Clean it because it's not always a valid json
+            rjson =  json.loads( data.replace('\r','\\r').replace("\\'","\\\\'") )
+
+            for c in rjson['itens']:
+                yield self.parse_single_comment(c)
+
+        except ValueError as e:
+            print "Could not decode page %s " % page
+
 
     def parse_comment_resume_json(self, response):
         """
