@@ -54,8 +54,20 @@ class GloboSpider(BaseSpider):
             # Clean it because it's not always a valid json
             rjson =  json.loads( data.replace('\r','\\r').replace("\\'","\\\\'") )
 
-            for c in rjson['itens']:
-                yield self.parse_single_comment(c)
+            # Recursively enter the reply list.
+            def recur_reply(tree):
+                t = []
+                for c in tree:
+                    t.append( self.parse_single_comment(c) )
+
+                    if 'replies' in c.keys():
+                        t = t + recur_reply(c['replies'])
+
+                return t
+
+            comments = recur_reply(rjson['itens'])
+            for c in comments:
+                yield c
 
         except ValueError as e:
             print "Could not decode page %s " % page
