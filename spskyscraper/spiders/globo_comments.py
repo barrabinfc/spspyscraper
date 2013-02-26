@@ -48,29 +48,36 @@ class GloboSpider(BaseSpider):
     def parse_comment_page_json(self,response):
         page = response.url.split('/')[-1].split('.json')[0]
         rjson = {}
-        try:
-            data =  re.search('__callback_listacomentarios\(([\s\S\n]*)\)',response.body, re.MULTILINE).groups()[0]
+        #try:
+        # Get everything in between function __callback_listacomentarios
+        data =  re.search('__callback_listacomentarios\(([\s\S\n]*)\)',response.body, re.MULTILINE).groups()[0]
 
-            # Clean it because it's not always a valid json
-            rjson =  json.loads( data.replace('\r','\\r').replace("\\'","\\\\'") )
+        # Clean it because it's json is always strict...
+        data = data.replace('\r','\\r').replace("\\'","'")
+        #f = file('test','w')
+        #f.write(data)
+        #f.close()
 
-            # Recursively enter the reply list.
-            def recur_reply(tree):
-                t = []
-                for c in tree:
-                    t.append( self.parse_single_comment(c) )
+        # Clean it because it's not always a valid json
+        rjson =  json.loads( data )
 
-                    if 'replies' in c.keys():
-                        t = t + recur_reply(c['replies'])
+        # Recursively enter the reply list.
+        def recur_reply(tree):
+            t = []
+            for c in tree:
+                t.append( self.parse_single_comment(c) )
 
-                return t
+                if 'replies' in c.keys():
+                    t = t + recur_reply(c['replies'])
+            return t
 
-            comments = recur_reply(rjson['itens'])
-            for c in comments:
-                yield c
+        comments = recur_reply(rjson['itens'])
+        print len(comments)
+        for c in comments:
+            yield c
 
-        except ValueError as e:
-            print "Could not decode page %s " % page
+        #except ValueError as e:
+        #    print "Could not decode page %s " % page
 
 
     def parse_comment_resume_json(self, response):

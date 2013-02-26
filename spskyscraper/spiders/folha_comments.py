@@ -34,6 +34,8 @@ class FolhaSpider(BaseSpider):
                 author_url = comm.select('h6/span/a/@href').extract()
                 comment = '\n'.join( comm.select('p/text()').extract()[:-1] )
 
+                comment =  comment.replace('\r','\\r').replace("\\'","'")
+
                 # Recurse into child comments, if necessary
                 child_comments = comm.select("ol/li")
                 if child_comments:
